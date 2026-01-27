@@ -43,3 +43,6 @@ ENV/
 
 # Logs
 *.log
+
+# Telethon sessions
+*.session

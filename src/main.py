@@ -9,28 +9,37 @@ if ROOT_DIR not in sys.path:
 
 from src.config import Config, logger
 from src.bot.bot import setup_bot
+from src.userbot.manager import UserbotManager
 
 async def main():
     """ Основная точка входа в приложение. """
     logger.info("🚀 Starting BT6 Parser Bot system...")
 
-    # Инициализируем Aiogram бота
+    # 1. Инициализируем Aiogram бота
     # Миграции теперь запустятся сами при первом импорте базы данных
     bot, dp = await setup_bot()
     
+    # 2. Инициализируем Telethon (Userbot)
+    userbot = UserbotManager()
+    await userbot.start()
+
+    # 3. Формирование списка задач для параллельного запуска
     tasks = [
-        dp.start_polling(bot, skip_updates=True)
+        dp.start_polling(bot, skip_updates=True, userbot=userbot),
+        userbot.run_until_disconnected()
     ]
 
-    logger.info("📡 All components are ready. Starting main loop...")
+    logger.info("📡 Both Bot and Userbot are running!")
     
     try:
+        # Запускаем все компоненты параллельно
         await asyncio.gather(*tasks)
     except Exception as e:
         logger.critical(f"💥 Critical error in main loop: {e}", exc_info=True)
     finally:
         logger.info("🛑 Shutting down services...")
-        await bot.session.close()
+        if 'bot' in locals():
+            await bot.session.close()
 
 if __name__ == "__main__":
     try:

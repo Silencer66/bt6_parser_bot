@@ -24,12 +24,26 @@ class DBMethods:
         result = await self.session.execute(stmt)
         return result.scalar_one_or_none()
 
-    async def get_all(self, status: Optional[GroupStatus] = None) -> List[Group]:
+    async def get_all(self, status: Optional[GroupStatus] = None, limit: Optional[int] = None, offset: Optional[int] = None) -> List[Group]:
         stmt = select(Group)
         if status:
             stmt = stmt.where(Group.status == status)
+        
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        if offset is not None:
+            stmt = stmt.offset(offset)
+            
         result = await self.session.execute(stmt)
         return list(result.scalars().all())
+
+    async def count_all(self, status: Optional[GroupStatus] = None) -> int:
+        from sqlalchemy import func
+        stmt = select(func.count(Group.id))
+        if status:
+            stmt = stmt.where(Group.status == status)
+        result = await self.session.execute(stmt)
+        return result.scalar() or 0
 
     async def get_by_tags(self, tags: List[str]) -> List[Group]:
         stmt = select(Group).where(Group.status == GroupStatus.ACTIVE)

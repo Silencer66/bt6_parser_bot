@@ -2,6 +2,7 @@ from aiogram import Bot, Dispatcher
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
+from aiogram.types import BotCommand
 
 from src.bot.handlers import group_handlers, session_handlers, base_handlers
 from src.bot.middleware.db_middleware import DatabaseMiddleware
@@ -25,5 +26,16 @@ async def setup_bot():
     dp.include_router(base_handlers.router)
     dp.include_router(group_handlers.router)
     dp.include_router(session_handlers.router)
+    
+    # Установка списка команд в меню бота
+    commands = [
+        BotCommand(command="start", description="Запустить бота"),
+        BotCommand(command="help", description="Справка"),
+        BotCommand(command="groups", description="Список групп"),
+        BotCommand(command="sync", description="Синхронизировать чаты из аккаунта"),
+        BotCommand(command="create_session", description="Создать торговую сессию"),
+        BotCommand(command="order_book", description="Показать стакан")
+    ]
+    await bot.set_my_commands(commands)
     
     return bot, dp

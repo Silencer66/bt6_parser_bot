@@ -37,9 +37,13 @@ class GroupService:
         """Получить группу по Telegram ID"""
         return await self.db_methods.get_by_telegram_id(telegram_id)
 
-    async def list_groups(self, status: Optional[GroupStatus] = None) -> List[Group]:
-        """Получить список групп"""
-        return await self.db_methods.get_all(status)
+    async def list_groups(self, status: Optional[GroupStatus] = None, limit: Optional[int] = None, offset: Optional[int] = None) -> List[Group]:
+        """Получить список групп с пагинацией"""
+        return await self.db_methods.get_all(status, limit, offset)
+
+    async def get_total_count(self, status: Optional[GroupStatus] = None) -> int:
+        """Получить общее количество групп"""
+        return await self.db_methods.count_all(status)
 
     async def get_active_groups(self) -> List[Group]:
         """Получить активные группы"""

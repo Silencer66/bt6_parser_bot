@@ -1,12 +1,10 @@
 """
 Обработчики для управления группами
 """
-from typing import List, Optional
+from typing import List, Optional, Any
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
-from aiogram.fsm.context import FSMContext
-from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.services import GroupService
@@ -14,101 +12,133 @@ from src.database import GroupStatus
 
 router = Router()
 
+GROUPS_PER_PAGE = 10
 
-class AddGroupStates(StatesGroup):
-    waiting_for_forward = State()
+async def get_groups_page_data(session: AsyncSession, page: int = 1):
+    """Подготовка текста и клавиатуры для страницы групп"""
+    service = GroupService(session)
+    total_count = await service.get_total_count()
+    
+    if total_count == 0:
+        return "📋 Список групп пуст. Группы добавляются через Userbot.", None
+
+    total_pages = (total_count + GROUPS_PER_PAGE - 1) // GROUPS_PER_PAGE
+    page = max(1, min(page, total_pages))
+    offset = (page - 1) * GROUPS_PER_PAGE
+    
+    groups = await service.list_groups(limit=GROUPS_PER_PAGE, offset=offset)
+    
+    text = f"📋 <b>Список отслеживаемых групп (Страница {page}/{total_pages}):</b>\n\n"
+    for idx, group in enumerate(groups, offset + 1):
+        status_icon = "✅" if group.status == GroupStatus.ACTIVE else "⏸️"
+        tags_text = ", ".join(group.tags) if group.tags else "нет тегов"
+        text += f"{idx}. {status_icon} <b>{group.title}</b>\n"
+        text += f"   ID: <code>{group.telegram_id}</code>\n"
+        text += f"   Теги: {tags_text}\n\n"
+
+    # Сборка клавиатуры в виде "таблицы"
+    buttons = []
+    for idx, group in enumerate(groups, offset + 1):
+        # Обрезаем длинные названия для кнопок
+        display_title = (group.title[:25] + '..') if len(group.title) > 25 else group.title
+        
+        buttons.append([
+            InlineKeyboardButton(text=f"{idx}. {display_title}", callback_data=f"groups_page:{page}"), # Просто кнопка-метка
+            InlineKeyboardButton(text="❌ Удалить", callback_data=f"delete_group:{group.id}:{page}")
+        ])
+
+    # Кнопки навигации
+    nav_row = []
+    if page > 1:
+        nav_row.append(InlineKeyboardButton(text="⬅️ Назад", callback_data=f"groups_page:{page-1}"))
+    if page < total_pages:
+        nav_row.append(InlineKeyboardButton(text="Вперед ➡️", callback_data=f"groups_page:{page+1}"))
+    
+    if nav_row:
+        buttons.append(nav_row)
+        
+    # Кнопка синхронизации и обновления
+    buttons.append([
+        InlineKeyboardButton(text="🔄 Обновить", callback_data=f"groups_page:{page}"),
+        InlineKeyboardButton(text="📥 Синхронизировать", callback_data="sync_groups")
+    ])
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
+    return text, keyboard
 
 
 @router.message(Command("groups"))
 async def cmd_groups(message: Message, session: AsyncSession):
     """Список групп"""
+    text, keyboard = await get_groups_page_data(session, page=1)
+    await message.answer(text, reply_markup=keyboard)
+
+
+@router.message(Command("sync"))
+async def cmd_sync(message: Message, session: AsyncSession, userbot: Any):
+    """Принудительная синхронизация групп"""
+    from src.userbot.handlers import sync_groups
+    sent_msg = await message.answer("🔍 Синхронизация... это может занять время.")
+    await sync_groups(userbot.client)
+    await sent_msg.edit_text("✅ Синхронизация завершена!")
+    # Показываем обновленный список
+    text, keyboard = await get_groups_page_data(session, page=1)
+    await message.answer(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "sync_groups")
+async def callback_sync_groups(callback: CallbackQuery, session: AsyncSession, userbot: Any):
+    """Синхронизация через кнопку"""
+    from src.userbot.handlers import sync_groups
+    await callback.answer("⏳ Начинаю сканирование чатов...")
+    await sync_groups(userbot.client)
+    await callback.message.answer("✅ Группы синхронизированы!")
+    
+    # Обновляем сообщение со списком
+    text, keyboard = await get_groups_page_data(session, page=1)
+    await callback.message.edit_text(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data.startswith("groups_page:"))
+async def callback_groups_page(callback: CallbackQuery, session: AsyncSession):
+    """Переключение страниц списка групп или обновление текущей"""
+    page = int(callback.data.split(":")[1])
+    text, keyboard = await get_groups_page_data(session, page=page)
+    
+    try:
+        await callback.message.edit_text(text, reply_markup=keyboard)
+    except Exception:
+        pass
+    finally:
+        await callback.answer()
+
+
+@router.callback_query(F.data.startswith("delete_group:"))
+async def callback_delete_group(callback: CallbackQuery, session: AsyncSession):
+    """Удаление группы из базы"""
+    parts = callback.data.split(":")
+    group_id = int(parts[1])
+    current_page = int(parts[2])
+    
     service = GroupService(session)
-    groups = await service.list_groups()
+    success = await service.delete_group(group_id)
     
-    if not groups:
-        await message.answer("📋 Список групп пуст. Используйте /add_group для добавления.")
-        return
-
-    text = "📋 **Список групп:**\n\n"
-    for idx, group in enumerate(groups, 1):
-        status_icon = "✅" if group.status == GroupStatus.ACTIVE else "⏸️"
-        tags_text = ", ".join(group.tags) if group.tags else "нет тегов"
-        text += f"{idx}. {status_icon} {group.title}\n"
-        text += f"   ID: {group.telegram_id} | Теги: {tags_text}\n\n"
-
-    # Кнопки для управления
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Добавить группу", callback_data="add_group")],
-        [InlineKeyboardButton(text="🔄 Обновить", callback_data="refresh_groups")]
-    ])
-
-    await message.answer(text, reply_markup=keyboard, parse_mode="Markdown")
-
-
-@router.message(Command("add_group"))
-async def cmd_add_group(message: Message, state: FSMContext):
-    """Начать процесс добавления группы"""
-    await message.answer(
-        "📤 Перешлите любое сообщение из группы, которую хотите добавить.\n"
-        "Бот автоматически определит ID группы."
-    )
-    await state.set_state(AddGroupStates.waiting_for_forward)
-
-
-@router.message(AddGroupStates.waiting_for_forward, F.forward_from_chat)
-async def process_forwarded_message(message: Message, state: FSMContext, session: AsyncSession):
-    """Обработка пересланного сообщения"""
-    chat = message.forward_from_chat
-    
-    if chat.type != "supergroup" and chat.type != "group":
-        await message.answer("❌ Это не группа. Перешлите сообщение из группы.")
-        return
-
-    service = GroupService(session)
-    
-    # Проверяем, не добавлена ли уже группа
-    existing = await service.get_group_by_telegram_id(chat.id)
-    if existing:
-        await message.answer(f"⚠️ Группа '{chat.title}' уже добавлена.")
-        await state.clear()
-        return
-
-    # Добавляем группу
-    group = await service.add_group(
-        telegram_id=chat.id,
-        title=chat.title or f"Group {chat.id}",
-        tags=[]
-    )
-
-    await message.answer(
-        f"✅ Группа '{group.title}' успешно добавлена!\n"
-        f"ID: {group.telegram_id}\n\n"
-        f"Используйте /edit_group для добавления тегов."
-    )
-    await state.clear()
+    if success:
+        await callback.answer("✅ Группа удалена")
+        # Обновляем текущую страницу
+        text, keyboard = await get_groups_page_data(session, page=current_page)
+        try:
+            await callback.message.edit_text(text, reply_markup=keyboard)
+        except Exception:
+            # Если страница стала пустой или текст не поменялся
+            pass
+    else:
+        await callback.answer("❌ Ошибка при удалении", show_alert=True)
 
 
 @router.callback_query(F.data == "refresh_groups")
 async def callback_refresh_groups(callback: CallbackQuery, session: AsyncSession):
-    """Обновить список групп"""
-    await callback.answer()
-    service = GroupService(session)
-    groups = await service.list_groups()
-    
-    if not groups:
-        await callback.message.edit_text("📋 Список групп пуст.")
-        return
-
-    text = "📋 **Список групп:**\n\n"
-    for idx, group in enumerate(groups, 1):
-        status_icon = "✅" if group.status == GroupStatus.ACTIVE else "⏸️"
-        tags_text = ", ".join(group.tags) if group.tags else "нет тегов"
-        text += f"{idx}. {status_icon} {group.title}\n"
-        text += f"   ID: {group.telegram_id} | Теги: {tags_text}\n\n"
-
-    keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Добавить группу", callback_data="add_group")],
-        [InlineKeyboardButton(text="🔄 Обновить", callback_data="refresh_groups")]
-    ])
-
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="Markdown")
+    """Устаревший хендлер обновления (для совместимости)"""
+    text, keyboard = await get_groups_page_data(session, page=1)
+    await callback.message.edit_text(text, reply_markup=keyboard)
+    await callback.answer("Список обновлен")

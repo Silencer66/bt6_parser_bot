@@ -106,21 +106,21 @@ class Settings(BaseSettings):
     BOT_TOKEN: str = Field(
         description="Telegram bot token from @BotFather"
     )
-
-    # Telegram Userbot (Pyrogram) - опционально для будущего использования
-    API_ID: Optional[int] = Field(
+    
+    # Telegram Userbot (Telethon)
+    TELEGRAM_API_ID: Optional[int] = Field(
         default=None,
         description="Telegram API ID for userbot"
     )
 
-    API_HASH: Optional[str] = Field(
+    TELEGRAM_API_HASH: Optional[str] = Field(
         default=None,
         description="Telegram API Hash for userbot"
     )
 
-    USERBOT_SESSION: Optional[str] = Field(
-        default=None,
-        description="Userbot session string"
+    TELEGRAM_SESSION_NAME: str = Field(
+        default="bt6_parser",
+        description="Telethon session name"
     )
 
     # ==================== AI Parser Settings ====================

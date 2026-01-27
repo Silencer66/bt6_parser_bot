@@ -35,7 +35,7 @@ async def cmd_create_session(message: Message, state: FSMContext):
     ])
     
     await message.answer(
-        "📊 **Создание торговой сессии**\n\n"
+        "📊 <b>Создание торговой сессии</b>\n\n"
         "Выберите направление сделки:",
         reply_markup=keyboard,
         parse_mode="Markdown"
@@ -145,7 +145,7 @@ async def process_ttl(message: Message, state: FSMContext, session: AsyncSession
         )
         
         await message.answer(
-            f"✅ **Торговая сессия создана!**\n\n"
+            f"✅ <b>Торговая сессия создана!</b>\n\n"
             f"ID: {trading_session.id}\n"
             f"Направление: {'Покупка' if trading_session.direction == TradeDirection.BUY else 'Продажа'}\n"
             f"Пара: {trading_session.currency_from}/{trading_session.currency_to}\n"
@@ -171,7 +171,7 @@ async def cmd_activate_session(message: Message, session: AsyncSession):
         
         if trading_session:
             await message.answer(
-                f"✅ **Сессия {session_id} активирована!**\n\n"
+                f"✅ <b>Сессия {session_id} активирована!</b>\n\n"
                 f"Направление: {'Покупка' if trading_session.direction == TradeDirection.BUY else 'Продажа'}\n"
                 f"Пара: {trading_session.currency_from}/{trading_session.currency_to}\n"
                 f"Время жизни: {trading_session.time_to_live_minutes} мин.\n\n"
