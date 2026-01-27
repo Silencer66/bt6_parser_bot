@@ -1,0 +1,51 @@
+from typing import List, Optional
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from src.database.models.common import Group, GroupStatus
+
+class DBMethods:
+    """DAO для работы с группами в базе данных"""
+
+    def __init__(self, session: AsyncSession):
+        self.session = session
+
+    async def create_group(self, group: Group) -> Group:
+        self.session.add(group)
+        await self.session.flush()
+        return group
+
+    async def get_by_id(self, group_id: int) -> Optional[Group]:
+        stmt = select(Group).where(Group.id == group_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_by_telegram_id(self, telegram_id: int) -> Optional[Group]:
+        stmt = select(Group).where(Group.telegram_id == telegram_id)
+        result = await self.session.execute(stmt)
+        return result.scalar_one_or_none()
+
+    async def get_all(self, status: Optional[GroupStatus] = None) -> List[Group]:
+        stmt = select(Group)
+        if status:
+            stmt = stmt.where(Group.status == status)
+        result = await self.session.execute(stmt)
+        return list(result.scalars().all())
+
+    async def get_by_tags(self, tags: List[str]) -> List[Group]:
+        stmt = select(Group).where(Group.status == GroupStatus.ACTIVE)
+        result = await self.session.execute(stmt)
+        all_active = result.scalars().all()
+        return [g for g in all_active if any(tag in g.tags for tag in tags)]
+
+    async def update_group(self, group: Group) -> Group:
+        self.session.add(group)
+        await self.session.flush()
+        return group
+
+    async def delete_group(self, group_id: int) -> bool:
+        group = await self.get_by_id(group_id)
+        if group:
+            await self.session.delete(group)
+            await self.session.flush()
+            return True
+        return False

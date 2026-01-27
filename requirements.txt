@@ -1,0 +1,21 @@
+# Core Frameworks
+aiogram>=3.4.0
+pyrogram>=2.0.106
+tgcrypto
+
+# Configuration & Validation
+pydantic>=2.0.0
+pydantic-settings
+python-dotenv
+
+# Database
+sqlalchemy>=2.0.0
+psycopg2-binary
+alembic
+
+# AI & API
+openai
+httpx
+
+# Utils
+# loguru  # Optional: if you decide to switch from standard logging
