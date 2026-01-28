@@ -33,8 +33,7 @@ async def setup_bot():
         BotCommand(command="help", description="Справка"),
         BotCommand(command="groups", description="Список групп"),
         BotCommand(command="sync", description="Синхронизировать чаты из аккаунта"),
-        BotCommand(command="create_session", description="Создать торговую сессию"),
-        BotCommand(command="order_book", description="Показать стакан")
+        BotCommand(command="create_session", description="Создать запрос"),
     ]
     await bot.set_my_commands(commands)
     

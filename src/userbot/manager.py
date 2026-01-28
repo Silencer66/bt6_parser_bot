@@ -1,6 +1,6 @@
 from telethon import TelegramClient
 from src.config import Config, logger
-from src.userbot.handlers import sync_groups, register_userbot_handlers
+from src.userbot.handlers import register_userbot_handlers
 
 class UserbotManager:
     def __init__(self):

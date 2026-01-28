@@ -6,8 +6,7 @@ from .db_methods import DBMethods
 from src.database.models.common import (
     TradingSession, 
     TradeDirection, 
-    PaymentMethod, 
-    SessionStatus
+    PaymentMethod
 )
 
 class SessionService:
@@ -38,7 +37,6 @@ class SessionService:
             volume=volume,
             payment_method=payment_method,
             time_to_live_minutes=time_to_live_minutes,
-            status=SessionStatus.CREATED,
             created_at=datetime.utcnow(),
             target_tags=target_tags
         )

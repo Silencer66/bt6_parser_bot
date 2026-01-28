@@ -1,6 +1,3 @@
-"""
-Обработчики для управления торговыми сессиями
-"""
 from typing import List, Optional
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -8,9 +5,13 @@ from aiogram.filters import Command
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.ext.asyncio import AsyncSession
+import asyncio
+from datetime import datetime, timedelta
 
-from src.services import SessionService, OrderBookService
-from src.database import TradeDirection, PaymentMethod, SessionStatus
+from src.services import SessionService, GroupService
+from src.database import TradeDirection, PaymentMethod
+from src.config import logger
+from src.userbot.manager import UserbotManager
 
 router = Router()
 
@@ -26,7 +27,7 @@ class CreateSessionStates(StatesGroup):
 
 @router.message(Command("create_session"))
 async def cmd_create_session(message: Message, state: FSMContext):
-    """Начать создание торговой сессии"""
+    """Начать создание заявки"""
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="🛒 Покупаю", callback_data="direction_buy"),
@@ -37,8 +38,7 @@ async def cmd_create_session(message: Message, state: FSMContext):
     await message.answer(
         "📊 <b>Создание торговой сессии</b>\n\n"
         "Выберите направление сделки:",
-        reply_markup=keyboard,
-        parse_mode="Markdown"
+        reply_markup=keyboard
     )
     await state.set_state(CreateSessionStates.waiting_for_direction)
 
@@ -128,76 +128,94 @@ async def process_payment_method(callback: CallbackQuery, state: FSMContext):
 
 
 @router.message(CreateSessionStates.waiting_for_ttl)
-async def process_ttl(message: Message, state: FSMContext, session: AsyncSession):
-    """Обработка времени жизни и создание сессии"""
+async def process_ttl(message: Message, state: FSMContext, session: AsyncSession, userbot: UserbotManager):
+    """Обработка времени жизни и запуск рассылки"""
     try:
         ttl = int(message.text.strip()) if message.text.strip() else 60
         data = await state.get_data()
         
+        # 1. Формирование красивого текста рассылки
+        direction = TradeDirection(data["direction"])
+        currency_from = data["currency_from"]
+        currency_to = data["currency_to"]
+        volume = data["volume"]
+        payment_method_enum = PaymentMethod(data["payment_method"]) if data.get("payment_method") else None
+        
+        # Определяем лейблы
+        action = "ПОКУПАЮ" if direction == TradeDirection.BUY else "ПРОДАЮ"
+        
+        payment_method_str = "Любой"
+        if payment_method_enum == PaymentMethod.NONRES: payment_method_str = "Безналичный расчет (Нерез)"
+        elif payment_method_enum == PaymentMethod.CASH: payment_method_str = "Наличные"
+        elif payment_method_enum == PaymentMethod.CASHLESS: payment_method_str = "Безналичный расчет"
+
+        # Шаблон сообщения в группы
+        broadcast_text = (
+            f"🎯 <b>ИЩУ ЛИКВИДНОСТЬ | АКТИВНО ДО {(datetime.now() + timedelta(minutes=ttl)).strftime('%H:%M')}</b>\n\n"
+            f"🔸 <b>НАПРАВЛЕНИЕ:</b> <b>{action} {currency_to} за {currency_from}</b>\n"
+            f"🔸 <b>ОБЪЕМ:</b> <b>{volume:,.0f} {currency_to}</b>\n"
+            f"🔸 <b>ОПЛАТА:</b> {payment_method_str}\n\n"
+        )
+
+        # 2. Получаем активные группы
+        group_service = GroupService(session)
+        active_groups = await group_service.get_active_groups()
+        
+        chat_ids = []
+        if active_groups:
+           status_msg = await message.answer(f"🚀 Запускаю сессию! Рассылка в {len(active_groups)} групп...")
+           for group in active_groups:
+               try:
+                   await userbot.client.send_message(entity=group.telegram_id, message=broadcast_text, parse_mode='html')
+                   chat_ids.append(group.telegram_id)
+                   await asyncio.sleep(1.0) # Анти-флуд
+               except Exception as e:
+                   logger.error(f"Broadcast error: {e}")
+        else:
+           await message.answer("⚠️ Нет активных групп для рассылки, но сессия создана локально.")
+
+        # 3. Сохраняем сессию в БД (опционально, для истории)
         service = SessionService(session)
-        trading_session = await service.create_session(
-            direction=TradeDirection(data["direction"]),
-            currency_from=data["currency_from"],
-            currency_to=data["currency_to"],
-            volume=data["volume"],
-            payment_method=PaymentMethod(data["payment_method"]) if data.get("payment_method") else None,
+        await service.create_session(
+            direction=direction,
+            currency_from=currency_from,
+            currency_to=currency_to,
+            volume=volume,
+            payment_method=payment_method_enum,
             time_to_live_minutes=ttl
         )
+
+        # 4. Запускаем "Табло" (Broadcast Monitor)
+        from src.utils.broadcast_state import broadcast_manager
         
-        await message.answer(
-            f"✅ <b>Торговая сессия создана!</b>\n\n"
-            f"ID: {trading_session.id}\n"
-            f"Направление: {'Покупка' if trading_session.direction == TradeDirection.BUY else 'Продажа'}\n"
-            f"Пара: {trading_session.currency_from}/{trading_session.currency_to}\n"
-            f"Объем: {trading_session.volume}\n"
-            f"Время жизни: {ttl} мин.\n\n"
-            f"Используйте /activate_session {trading_session.id} для активации."
+        # Направление для менеджера: если мы BUY, то ищем продавцов, передаем 'buy'
+        trade_dir_str = "buy" if direction == TradeDirection.BUY else "sell"
+        
+        broadcast_manager.start(
+            admin_id=message.from_user.id, 
+            duration_minutes=ttl, 
+            target_chat_ids=chat_ids,
+            direction=trade_dir_str,
+            currency_from=currency_from,
+            currency_to=currency_to
         )
+        
+        # Создаем сообщение-табло
+        dashboard_preview = (
+             f"📊 <b>Сбор заявок: {'ПОКУПКА' if direction == TradeDirection.BUY else 'ПРОДАЖА'}</b>\n"
+             f"⏱️ Осталось времени: {ttl} мин.\n\n"
+             f"⏳ Ожидаю первые офферы..."
+        )
+        
+        try:
+             # Отправляем через Userbot (чтобы он мог редактировать)
+             dash_msg = await userbot.client.send_message(message.from_user.id, dashboard_preview, parse_mode='html')
+             broadcast_manager.set_report_message_id(dash_msg.id)
+             await message.answer("✅ Сессия активна! Сводка выше будет обновляться в реальном времени.")
+        except Exception as e:
+             await message.answer(f"⚠️ Табло не создалось: {e}")
+
         await state.clear()
+        
     except ValueError:
         await message.answer("❌ Введите корректное число минут.")
-
-
-@router.message(Command("activate_session"))
-async def cmd_activate_session(message: Message, session: AsyncSession):
-    """Активировать торговую сессию"""
-    try:
-        parts = message.text.split()
-        if len(parts) < 2:
-            raise IndexError
-        session_id = int(parts[1])
-        service = SessionService(session)
-        trading_session = await service.activate_session(session_id)
-        
-        if trading_session:
-            await message.answer(
-                f"✅ <b>Сессия {session_id} активирована!</b>\n\n"
-                f"Направление: {'Покупка' if trading_session.direction == TradeDirection.BUY else 'Продажа'}\n"
-                f"Пара: {trading_session.currency_from}/{trading_session.currency_to}\n"
-                f"Время жизни: {trading_session.time_to_live_minutes} мин.\n\n"
-                f"Сессия будет собирать заявки до истечения времени."
-            )
-        else:
-            await message.answer(f"❌ Сессия {session_id} не найдена.")
-    except (IndexError, ValueError):
-        await message.answer("❌ Использование: /activate_session <session_id>")
-
-
-@router.message(Command("order_book"))
-async def cmd_order_book(message: Message, session: AsyncSession):
-    """Показать стакан заявок для активной сессии"""
-    service = SessionService(session)
-    order_book_service = OrderBookService(session)
-    
-    active_sessions = await service.get_active_sessions()
-    
-    if not active_sessions:
-        await message.answer("❌ Нет активных сессий.")
-        return
-    
-    # Берем первую активную сессию
-    trading_session = active_sessions[0]
-    order_book = await order_book_service.build_order_book(trading_session.id)
-    text = order_book_service.format_order_book_text(order_book, trading_session)
-    
-    await message.answer(text)

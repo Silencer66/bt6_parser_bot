@@ -30,20 +30,24 @@ async def get_groups_page_data(session: AsyncSession, page: int = 1):
     
     text = f"📋 <b>Список отслеживаемых групп (Страница {page}/{total_pages}):</b>\n\n"
     for idx, group in enumerate(groups, offset + 1):
-        status_icon = "✅" if group.status == GroupStatus.ACTIVE else "⏸️"
+        status_icon = "🔊" if group.status == GroupStatus.ACTIVE else "🔇"
         tags_text = ", ".join(group.tags) if group.tags else "нет тегов"
         text += f"{idx}. {status_icon} <b>{group.title}</b>\n"
         text += f"   ID: <code>{group.telegram_id}</code>\n"
         text += f"   Теги: {tags_text}\n\n"
 
-    # Сборка клавиатуры в виде "таблицы"
     buttons = []
     for idx, group in enumerate(groups, offset + 1):
         # Обрезаем длинные названия для кнопок
         display_title = (group.title[:25] + '..') if len(group.title) > 25 else group.title
         
+        # Статус кнопка
+        status_text = "🔊 Включить" if group.status == GroupStatus.INACTIVE else "🔇 Выключить"
+        status_action = "enable_group" if group.status == GroupStatus.INACTIVE else "disable_group"
+
         buttons.append([
             InlineKeyboardButton(text=f"{idx}. {display_title}", callback_data=f"groups_page:{page}"), # Просто кнопка-метка
+            InlineKeyboardButton(text=status_text, callback_data=f"{status_action}:{group.id}:{page}"),
             InlineKeyboardButton(text="❌ Удалить", callback_data=f"delete_group:{group.id}:{page}")
         ])
 
@@ -142,3 +146,39 @@ async def callback_refresh_groups(callback: CallbackQuery, session: AsyncSession
     text, keyboard = await get_groups_page_data(session, page=1)
     await callback.message.edit_text(text, reply_markup=keyboard)
     await callback.answer("Список обновлен")
+
+
+@router.callback_query(F.data.startswith("enable_group:"))
+async def callback_enable_group(callback: CallbackQuery, session: AsyncSession):
+    """Включение группы (unmute)"""
+    parts = callback.data.split(":")
+    group_id = int(parts[1])
+    current_page = int(parts[2])
+    
+    service = GroupService(session)
+    await service.update_group_status(group_id, GroupStatus.ACTIVE)
+    
+    await callback.answer("✅ Группа включена")
+    text, keyboard = await get_groups_page_data(session, page=current_page)
+    try:
+        await callback.message.edit_text(text, reply_markup=keyboard)
+    except Exception:
+        pass
+
+
+@router.callback_query(F.data.startswith("disable_group:"))
+async def callback_disable_group(callback: CallbackQuery, session: AsyncSession):
+    """Выключение группы (mute)"""
+    parts = callback.data.split(":")
+    group_id = int(parts[1])
+    current_page = int(parts[2])
+    
+    service = GroupService(session)
+    await service.update_group_status(group_id, GroupStatus.INACTIVE)
+    
+    await callback.answer("🔇 Группа выключена")
+    text, keyboard = await get_groups_page_data(session, page=current_page)
+    try:
+        await callback.message.edit_text(text, reply_markup=keyboard)
+    except Exception:
+        pass
