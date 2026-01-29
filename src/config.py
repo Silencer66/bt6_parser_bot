@@ -83,7 +83,7 @@ class Settings(BaseSettings):
 
     # ==================== Database Settings ====================
     DATABASE_URL: Optional[str] = Field(
-        default="postgresql://postgres:postgres@localhost:5432/bt6_parser_bot",
+        default=None,
         description="Database connection URL (PostgreSQL)"
     )
 
