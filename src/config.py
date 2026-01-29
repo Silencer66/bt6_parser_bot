@@ -44,8 +44,7 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=Path(__file__).parent.parent / ".env",
-        # env_file=get_env_file() if get_env_file() else None,
+        env_file=get_env_file(),
         env_file_encoding="utf-8",
         case_sensitive=True,
         # Allow extra fields from environment
