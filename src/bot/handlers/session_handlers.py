@@ -8,10 +8,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
 from datetime import datetime, timedelta
 
-from src.services import SessionService, GroupService
-from src.database import TradeDirection, PaymentMethod
-from src.config import logger
-from src.userbot.manager import UserbotManager
+from services import SessionService, GroupService
+from database import TradeDirection, PaymentMethod
+from config import logger
+from userbot.manager import UserbotManager
 
 router = Router()
 
@@ -186,7 +186,7 @@ async def process_ttl(message: Message, state: FSMContext, session: AsyncSession
         )
 
         # 4. Запускаем "Табло" (Broadcast Monitor)
-        from src.utils.broadcast_state import broadcast_manager
+        from utils.broadcast_state import broadcast_manager
         
         # Направление для менеджера: если мы BUY, то ищем продавцов, передаем 'buy'
         trade_dir_str = "buy" if direction == TradeDirection.BUY else "sell"

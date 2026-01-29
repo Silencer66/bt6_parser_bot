@@ -1,7 +1,7 @@
 import json
 import httpx
 from typing import Optional, Dict, Any
-from src.config import Config, logger
+from config import Config, logger
 
 class OpenRouterClient:
     def __init__(self):

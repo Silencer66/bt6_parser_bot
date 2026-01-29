@@ -1,10 +1,10 @@
 from telethon import events, types
-from src.services import GroupService
-from src.database.client import get_db_session
+from services import GroupService
+from database.client import get_db_session
 from datetime import datetime
-from src.utils.broadcast_state import broadcast_manager
-from src.api.openrouter.client import ai_client
-from src.config import logger
+from utils.broadcast_state import broadcast_manager
+from api.openrouter.client import ai_client
+from config import logger
 
 async def sync_groups(client):
     """

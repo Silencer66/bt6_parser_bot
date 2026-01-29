@@ -4,9 +4,9 @@ from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.types import BotCommand
 
-from src.bot.handlers import group_handlers, session_handlers, base_handlers
-from src.bot.middleware.db_middleware import DatabaseMiddleware
-from src.config import Config
+from bot.handlers import group_handlers, session_handlers, base_handlers
+from bot.middleware.db_middleware import DatabaseMiddleware
+from config import Config
 
 
 async def setup_bot():

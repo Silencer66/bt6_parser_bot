@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlalchemy import select, update, delete
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.database.models.common import TradingSession, Group, GroupStatus
+from database.models.common import TradingSession, Group, GroupStatus
 
 class DBMethods:
     """DAO для работы с сессиями в базе данных"""

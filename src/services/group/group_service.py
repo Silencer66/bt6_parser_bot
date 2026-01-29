@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from datetime import datetime
 
 from .db_methods import DBMethods
-from src.database.models.common import Group, GroupStatus
+from database.models.common import Group, GroupStatus
 
 class GroupService:
     """Сервис управления группами"""

@@ -4,8 +4,8 @@ Middleware для работы с БД
 from typing import Callable, Awaitable, Any
 from aiogram import BaseMiddleware
 from aiogram.types import TelegramObject, Message
-from src.database.client import get_db_session
-from src.config import logger
+from database.client import get_db_session
+from config import logger
 
 
 class DatabaseMiddleware(BaseMiddleware):

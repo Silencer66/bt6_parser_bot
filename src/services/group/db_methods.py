@@ -1,7 +1,7 @@
 from typing import List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from src.database.models.common import Group, GroupStatus
+from database.models.common import Group, GroupStatus
 
 class DBMethods:
     """DAO для работы с группами в базе данных"""

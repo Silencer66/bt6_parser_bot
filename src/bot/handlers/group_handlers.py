@@ -7,8 +7,8 @@ from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKe
 from aiogram.filters import Command
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.services import GroupService
-from src.database import GroupStatus
+from services import GroupService
+from database import GroupStatus
 
 router = Router()
 
@@ -81,7 +81,7 @@ async def cmd_groups(message: Message, session: AsyncSession):
 @router.message(Command("sync"))
 async def cmd_sync(message: Message, session: AsyncSession, userbot: Any):
     """Принудительная синхронизация групп"""
-    from src.userbot.handlers import sync_groups
+    from userbot.handlers import sync_groups
     sent_msg = await message.answer("🔍 Синхронизация... это может занять время.")
     await sync_groups(userbot.client)
     await sent_msg.edit_text("✅ Синхронизация завершена!")
@@ -93,7 +93,7 @@ async def cmd_sync(message: Message, session: AsyncSession, userbot: Any):
 @router.callback_query(F.data == "sync_groups")
 async def callback_sync_groups(callback: CallbackQuery, session: AsyncSession, userbot: Any):
     """Синхронизация через кнопку"""
-    from src.userbot.handlers import sync_groups
+    from userbot.handlers import sync_groups
     await callback.answer("⏳ Начинаю сканирование чатов...")
     await sync_groups(userbot.client)
     await callback.message.answer("✅ Группы синхронизированы!")
