@@ -21,6 +21,40 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 
+class CustomRailwayLogFormatter(logging.Formatter):
+    """Custom JSON formatter for logging (Railway-compatible)."""
+    
+    def format(self, record):
+        log_record = {
+            "time": self.formatTime(record),
+            "level": record.levelname,
+            "message": record.getMessage()
+        }
+        if record.exc_info:
+            log_record["exception"] = self.formatException(record.exc_info)
+        return json.dumps(log_record)
+
+
+def get_logger():
+    """Get configured logger instance."""
+    logger = logging.getLogger()
+    logger.setLevel(logging.INFO)
+    
+    # Remove existing handlers
+    for handler in logger.handlers[:]:
+        logger.removeHandler(handler)
+    
+    # Add new handler with custom formatter
+    handler = logging.StreamHandler()
+    formatter = CustomRailwayLogFormatter()
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+    
+    return logger
+
+# Create global logger instance
+logger = get_logger()
+
 def get_env_file():
     env_router_file = Path(__file__).parent.parent / ".env"
     if env_router_file.exists():
@@ -100,7 +134,12 @@ class Settings(BaseSettings):
 
     TELEGRAM_SESSION_NAME: str = Field(
         default="bt6_parser",
-        description="Telethon session name"
+        description="Telethon session name (file based)"
+    )
+    
+    TELETHON_SESSION: Optional[str] = Field(
+        default=None,
+        description="Telethon String Session (for cloud deployment)"
     )
 
     # ==================== AI Parser Settings ====================
@@ -113,18 +152,28 @@ class Settings(BaseSettings):
     @property
     def PROJECT_ROOT(self) -> Path:
         """Get project root directory."""
-        return Path(__file__).parent.parent
+        return Path(__file__).resolve().parent
 
     @property
-    def ALEMBIC_INI_PATH(self) -> str:
-        """Path to alembic.ini."""
-        return str(self.PROJECT_ROOT / "alembic.ini")
+    def MIGRATION_FOLDER(self) -> Path:
+        """Get Alembic migrations folder."""
+        return self.PROJECT_ROOT / "database" / "migrations"
+
+    @property
+    def ALEMBIC_INI_PATH(self) -> Path:
+        """Get Alembic configuration file path."""
+        return self.PROJECT_ROOT / "database" / "alembic.ini"
 
     @property
     def ALEMBIC_SCRIPT_PATH(self) -> str:
         """Path to alembic migrations directory."""
-        return str(self.PROJECT_ROOT / "src" / "database" / "migrations")
+        return self.PROJECT_ROOT / "database" / "migrations"
 
+    @property
+    def ALEMBIC_REVISION(self) -> str:
+        """Get target Alembic revision."""
+        return "heads"
+    
     @property
     def database_url(self) -> URL:
         """Get SQLAlchemy database URL object."""    
@@ -175,43 +224,8 @@ class Settings(BaseSettings):
         return self
 
 
-class CustomRailwayLogFormatter(logging.Formatter):
-    """Custom JSON formatter for logging (Railway-compatible)."""
-    
-    def format(self, record):
-        log_record = {
-            "time": self.formatTime(record),
-            "level": record.levelname,
-            "message": record.getMessage()
-        }
-        if record.exc_info:
-            log_record["exception"] = self.formatException(record.exc_info)
-        return json.dumps(log_record)
-
-
-def get_logger():
-    """Get configured logger instance."""
-    logger = logging.getLogger()
-    logger.setLevel(logging.INFO)
-    
-    # Remove existing handlers
-    for handler in logger.handlers[:]:
-        logger.removeHandler(handler)
-    
-    # Add new handler with custom formatter
-    handler = logging.StreamHandler()
-    formatter = CustomRailwayLogFormatter()
-    handler.setFormatter(formatter)
-    logger.addHandler(handler)
-    
-    return logger
-
-
 # Create global config instance
 Config = Settings()
-
-# Create global logger instance
-logger = get_logger()
 
 
 # Backward compatibility function

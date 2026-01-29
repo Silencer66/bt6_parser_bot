@@ -6,7 +6,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     git \
     build-essential \
-    pstgresql-clienot \
+    postgresql-client \
     libmagic-dev \
     && rm -rf /var/lib/apt/lists/*
 

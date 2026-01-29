@@ -2,10 +2,18 @@ from telethon import TelegramClient
 from config import Config, logger
 from userbot.handlers import register_userbot_handlers
 
+from telethon.sessions import StringSession
+
 class UserbotManager:
     def __init__(self):
+        session = Config.TELEGRAM_SESSION_NAME
+        
+        if Config.TELETHON_SESSION:
+            logger.info("Using StringSession for Telethon")
+            session = StringSession(Config.TELETHON_SESSION)
+            
         self.client = TelegramClient(
-            Config.TELEGRAM_SESSION_NAME,
+            session,
             Config.TELEGRAM_API_ID,
             Config.TELEGRAM_API_HASH
         )
