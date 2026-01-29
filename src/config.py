@@ -21,38 +21,19 @@ from pydantic import (
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import URL, make_url
 
-
 def get_env_file():
-    """Get environment file path.
-    
-    Looks for .env file in project root. If .env contains a filename,
-    uses that file instead (e.g., .env.development).
-    """
-    project_root = Path(__file__).parent.parent
-    env_router_file = project_root / ".env"
-    
+    env_router_file = Path(__file__).parent.parent / ".env"
     if env_router_file.exists():
         with env_router_file.open() as f:
-            content = f.read().strip()
-            # If .env contains just a filename (first line without =), use it
-            first_line = content.split("\n")[0].strip() if content else ""
-            if first_line and "=" not in first_line and not first_line.startswith("#"):
-                env_file_name = first_line
-                env_file = project_root / env_file_name
-                if env_file.exists():
-                    return str(env_file)
-                else:
-                    msg = f"Environment file {env_file_name} not found, create it in the project root."
-                    raise FileNotFoundError(msg)
-            # Otherwise use .env directly
-            return str(env_router_file)
+            env_file_name = f.read().strip()
+            env_file = Path(__file__).parent.parent / env_file_name
+            if env_file.exists():
+                return env_file
+            else:
+                msg = f"Environment file {env_file_name} not found, create it in the project root."
+                raise FileNotFoundError(msg)
     else:
-        # Fallback: try .env in project root
-        fallback_env = project_root / ".env"
-        if fallback_env.exists():
-            return str(fallback_env)
-        # If no .env found, return None to use environment variables only
-        return None
+        logger.warning("Environment router file not found, create .env file and place name of env file in it e.g .env.development")
 
 
 class Settings(BaseSettings):
@@ -63,7 +44,8 @@ class Settings(BaseSettings):
     """
 
     model_config = SettingsConfigDict(
-        env_file=get_env_file() if get_env_file() else None,
+        env_file=Path(__file__).parent.parent / ".env",
+        # env_file=get_env_file() if get_env_file() else None,
         env_file_encoding="utf-8",
         case_sensitive=True,
         # Allow extra fields from environment
@@ -82,8 +64,7 @@ class Settings(BaseSettings):
     )
 
     # ==================== Database Settings ====================
-    DATABASE_URL: Optional[str] = Field(
-        default=None,
+    DB_URL: PostgresDsn = Field(
         description="Database connection URL (PostgreSQL)"
     )
 
@@ -147,14 +128,8 @@ class Settings(BaseSettings):
 
     @property
     def database_url(self) -> URL:
-        """Get SQLAlchemy database URL object."""
-        if self.USE_DEV_DB:
-            # Development database URL
-            db_url = "postgresql://postgres:postgres@localhost:5432/bt6_parser_bot"
-        else:
-            db_url = self.DATABASE_URL
-        
-        return make_url(db_url)
+        """Get SQLAlchemy database URL object."""    
+        return make_url(str(self.DB_URL))
 
     @property
     def is_production(self) -> bool:
