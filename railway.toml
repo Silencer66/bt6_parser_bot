@@ -1,0 +1,15 @@
+# Railway project config
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+context = "."
+
+[deploy]
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[env]
+# Railway automatically injects $PORT, you can add your own:
+PYTHONUNBUFFERED = "1"
+LOG_LEVEL = "info"
+
