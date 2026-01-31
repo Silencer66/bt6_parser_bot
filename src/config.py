@@ -148,6 +148,12 @@ class Settings(BaseSettings):
         description="OpenAI API key for AI parser (future feature)"
     )
 
+    # ==================== Access Control ====================
+    BOT_ACCESS_PASSWORD: Optional[str] = Field(
+        default=None,
+        description="Password for new users to access the bot (if None, access is open)"
+    )
+
     # ==================== Computed Properties ====================
     @property
     def PROJECT_ROOT(self) -> Path:

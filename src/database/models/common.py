@@ -26,7 +26,6 @@ class User(Base):
     username = Column(String, nullable=True)
     full_name = Column(String, nullable=True)
     is_admin = Column(Boolean, default=False)
-    is_blacklisted = Column(Boolean, default=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class TradingSession(Base):

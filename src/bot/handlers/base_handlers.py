@@ -32,3 +32,15 @@ async def cmd_help(message: Message):
         "• /start — Начать работу с ботом\n"
         "• /help — Показать эту справку"
     )
+
+
+@router.message()
+async def handle_text(message: Message):
+    """Обработчик любого текста (для авторизации и прочего)"""
+    # Если пользователь дошёл сюда, значит он авторизован
+    # (AuthMiddleware пропустил его)
+    await message.answer(
+        "ℹ️ Я не понял вашу команду.\n"
+        "Используйте /help для списка доступных команд."
+    )
+

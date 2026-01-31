@@ -6,6 +6,7 @@ from aiogram.types import BotCommand
 
 from bot.handlers import group_handlers, session_handlers, base_handlers
 from bot.middleware.db_middleware import DatabaseMiddleware
+from bot.middleware.auth_middleware import AuthMiddleware
 from config import Config
 
 
@@ -21,6 +22,9 @@ async def setup_bot():
     # Регистрация middleware
     dp.message.middleware(DatabaseMiddleware())
     dp.callback_query.middleware(DatabaseMiddleware())
+
+    # Auth Middleware (проверка пароля)
+    dp.message.middleware(AuthMiddleware())
     
     # Регистрация роутеров
     dp.include_router(base_handlers.router)
