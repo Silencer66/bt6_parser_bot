@@ -78,7 +78,7 @@ async def cmd_groups(message: Message, session: AsyncSession):
     await message.answer(text, reply_markup=keyboard)
 
 
-@router.message(Command("sync"))
+@router.message(Command("update_groups"))
 async def cmd_sync(message: Message, session: AsyncSession, userbot: Any):
     """Принудительная синхронизация групп"""
     from userbot.handlers import sync_groups

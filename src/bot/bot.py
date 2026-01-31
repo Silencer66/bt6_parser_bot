@@ -26,17 +26,19 @@ async def setup_bot():
     # Auth Middleware (проверка пароля)
     dp.message.middleware(AuthMiddleware())
     
-    # Регистрация роутеров
-    dp.include_router(base_handlers.router)
+    # Регистрация роутеров (порядок важен!)
+    # Специфичные роутеры должны быть ПЕРВЫМИ
     dp.include_router(group_handlers.router)
     dp.include_router(session_handlers.router)
+    # Fallback роутер (catch-all) должен быть ПОСЛЕДНИМ
+    dp.include_router(base_handlers.router)
     
     # Установка списка команд в меню бота
     commands = [
         BotCommand(command="start", description="Запустить бота"),
         BotCommand(command="help", description="Справка"),
         BotCommand(command="groups", description="Список групп"),
-        BotCommand(command="sync", description="Синхронизировать чаты из аккаунта"),
+        BotCommand(command="update_groups", description="Обновить чаты из аккаунта"),
         BotCommand(command="create_session", description="Создать запрос"),
     ]
     await bot.set_my_commands(commands)
