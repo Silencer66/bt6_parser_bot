@@ -4,7 +4,7 @@ from aiogram.enums import ParseMode
 from aiogram.client.default import DefaultBotProperties
 from aiogram.types import BotCommand
 
-from bot.handlers import group_handlers, session_handlers, base_handlers
+from bot.handlers import group_handlers, session_handlers, base_handlers, custom_broadcast_handlers
 from bot.middleware.db_middleware import DatabaseMiddleware
 from bot.middleware.auth_middleware import AuthMiddleware
 from config import Config
@@ -27,19 +27,20 @@ async def setup_bot():
     dp.message.middleware(AuthMiddleware())
     
     # Регистрация роутеров (порядок важен!)
-    # Специфичные роутеры должны быть ПЕРВЫМИ
     dp.include_router(group_handlers.router)
     dp.include_router(session_handlers.router)
+    dp.include_router(custom_broadcast_handlers.router)
     # Fallback роутер (catch-all) должен быть ПОСЛЕДНИМ
     dp.include_router(base_handlers.router)
     
-    # Установка списка команд в меню бота
+    # Установка списка команд в меню бота 
     commands = [
         BotCommand(command="start", description="Запустить бота"),
         BotCommand(command="help", description="Справка"),
         BotCommand(command="groups", description="Список групп"),
         BotCommand(command="update_groups", description="Обновить чаты из аккаунта"),
         BotCommand(command="create_session", description="Создать запрос"),
+        BotCommand(command="broadcast_custom", description="Произвольная рассылка"),
     ]
     await bot.set_my_commands(commands)
     

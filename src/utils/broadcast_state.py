@@ -12,8 +12,9 @@ class BroadcastState:
         self.session_direction: str = 'buy'
         self.currency_from: str = ''
         self.currency_to: str = ''
+        self.is_custom_mode: bool = False 
 
-    def start(self, admin_id: int, duration_minutes: int, target_chat_ids: list[int], direction: str = 'buy', currency_from: str = '', currency_to: str = ''):
+    def start(self, admin_id: int, duration_minutes: int, target_chat_ids: list[int], direction: str = 'buy', currency_from: str = '', currency_to: str = '', is_custom: bool = False):
         self.admin_id = admin_id
         self.end_time = datetime.now() + timedelta(minutes=duration_minutes)
         self.target_chat_ids = set(target_chat_ids)
@@ -23,6 +24,7 @@ class BroadcastState:
         self.session_direction = direction # 'buy' or 'sell' (наше намерение)
         self.currency_from = currency_from
         self.currency_to = currency_to
+        self.is_custom_mode = is_custom
 
     def stop(self):
         self.is_active = False
@@ -47,7 +49,14 @@ class BroadcastState:
         })
 
     def get_dashboard_text(self) -> str:
-        """Генерирует текст Табло с ТОПом предложений"""
+        """Route to appropriate dashboard formatter"""
+        if self.is_custom_mode:
+            return self._format_custom_dashboard()
+        else:
+            return self._format_structured_dashboard()
+    
+    def _format_structured_dashboard(self) -> str:
+        """Генерирует текст Табло для структурированных торговых сессий"""
         if not self.responses:
             return "⏳ Ожидаю первые сообщения..."
         
@@ -84,6 +93,47 @@ class BroadcastState:
             for r in other_responses[-5:]: # Последние 5 прочих
                 lines.append(f"• {r['user']}: {r.get('raw_text', '')[:30]}...")
                 
+        return "\n".join(lines)
+    
+    def _format_custom_dashboard(self) -> str:
+        """Генерирует текст Табло для кастомных рассылок (показывает buy и sell)"""
+        if not self.responses:
+            return "⏳ Ожидаю первые сообщения..."
+        
+        buy_offers = [r for r in self.responses if r.get('side') == 'buy' and r.get('price')]
+        sell_offers = [r for r in self.responses if r.get('side') == 'sell' and r.get('price')]
+        other_msgs = [r for r in self.responses if not r.get('price')]
+        
+        buy_offers.sort(key=lambda x: x['price'], reverse=True)
+        sell_offers.sort(key=lambda x: x['price'])
+        
+        lines = []
+        
+        if sell_offers:
+            lines.append("💰 <b>ПРОДАЖА (лучшие предложения):</b>")
+            for i, r in enumerate(sell_offers[:5], 1):
+                vol_str = f" | {r.get('volume', '?')}" if r.get('volume') else ""
+                lines.append(f"{i}. {r['price']}{vol_str} | {r['user']} ({r['group']})")
+            avg_sell = sum(r['price'] for r in sell_offers) / len(sell_offers)
+            lines.append(f"Средний: {avg_sell:.2f}\n")
+        
+        if buy_offers:
+            lines.append("🛒 <b>ПОКУПКА (лучшие предложения):</b>")
+            for i, r in enumerate(buy_offers[:5], 1):
+                vol_str = f" | {r.get('volume', '?')}" if r.get('volume') else ""
+                lines.append(f"{i}. {r['price']}{vol_str} | {r['user']} ({r['group']})")
+            avg_buy = sum(r['price'] for r in buy_offers) / len(buy_offers)
+            lines.append(f"Средний: {avg_buy:.2f}\n")
+        
+        if buy_offers and sell_offers:
+            spread = avg_sell - avg_buy
+            lines.append(f"💡 <b>Спред: {spread:.2f}</b>\n")
+        
+        if other_msgs:
+            lines.append("📋 <b>Прочие сообщения:</b>")
+            for r in other_msgs[-3:]:
+                lines.append(f"• {r['user']}: {r.get('raw_text', '')[:30]}...")
+        
         return "\n".join(lines)
 
     def is_monitoring(self, chat_id: int = None) -> bool:

@@ -40,6 +40,10 @@ class TradingSession(Base):
     time_to_live_minutes = Column(Integer, default=60)
     created_at = Column(DateTime, default=datetime.utcnow)
     target_tags = Column(JSON, default=list)
+    
+    # Custom broadcast fields
+    is_custom_broadcast = Column(Boolean, default=False)
+    custom_message = Column(String, nullable=True)
 
     def is_expired(self) -> bool:
         delta = datetime.utcnow() - self.created_at
