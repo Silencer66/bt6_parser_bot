@@ -13,7 +13,7 @@ class OpenRouterClient:
             "X-Title": "BT6 Parser Bot",
             "Content-Type": "application/json"
         }
-        self.model = "openai/gpt-4o-mini"
+        self.model = "anthropic/claude-3.5-sonnet"
 
     async def analyze_message(self, message_text: str, context_prompt: str = "") -> Optional[List[Dict[str, Any]]]:
         """
