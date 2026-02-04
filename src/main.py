@@ -14,7 +14,7 @@ from userbot.manager import UserbotManager
 async def main():
     """ Основная точка входа в приложение. """
     logger.info("🚀 Starting BT6 Parser Bot system...")
-
+ 
     # 1. Инициализируем Aiogram бота
     # Миграции теперь запустятся сами при первом импорте базы данных
     bot, dp = await setup_bot()

@@ -97,3 +97,9 @@ class GroupService:
         if result:
             await self.session.commit()
         return result
+
+    async def remove_all_groups(self) -> bool:
+        result = await self.db_methods.remove_all_groups()
+        if result:
+            await self.session.commit()
+        return result

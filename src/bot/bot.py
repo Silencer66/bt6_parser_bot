@@ -39,6 +39,7 @@ async def setup_bot():
         BotCommand(command="help", description="Справка"),
         BotCommand(command="groups", description="Список групп"),
         BotCommand(command="update_groups", description="Обновить чаты из аккаунта"),
+        BotCommand(command="remove_groups", description="Удалить все группы"),
         BotCommand(command="create_session", description="Создать запрос"),
         BotCommand(command="broadcast_custom", description="Произвольная рассылка"),
     ]

@@ -2,6 +2,7 @@
 Обработчики для управления группами
 """
 from typing import List, Optional, Any
+import html
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import Command
@@ -31,8 +32,9 @@ async def get_groups_page_data(session: AsyncSession, page: int = 1):
     text = f"📋 <b>Список отслеживаемых групп (Страница {page}/{total_pages}):</b>\n\n"
     for idx, group in enumerate(groups, offset + 1):
         status_icon = "🔊" if group.status == GroupStatus.ACTIVE else "🔇"
-        tags_text = ", ".join(group.tags) if group.tags else "нет тегов"
-        text += f"{idx}. {status_icon} <b>{group.title}</b>\n"
+        safe_title = html.escape(group.title) if group.title else "Без названия"
+        tags_text = html.escape(", ".join(group.tags)) if group.tags else "нет тегов"
+        text += f"{idx}. {status_icon} <b>{safe_title}</b>\n"
         text += f"   ID: <code>{group.telegram_id}</code>\n"
         text += f"   Теги: {tags_text}\n\n"
 
@@ -63,8 +65,12 @@ async def get_groups_page_data(session: AsyncSession, page: int = 1):
         
     # Кнопка синхронизации и обновления
     buttons.append([
-        InlineKeyboardButton(text="🔄 Обновить", callback_data=f"groups_page:{page}"),
         InlineKeyboardButton(text="📥 Синхронизировать", callback_data="sync_groups")
+    ])
+    
+    # Кнопка удаления всех групп
+    buttons.append([
+        InlineKeyboardButton(text="🗑️ Удалить все", callback_data="remove_groups")
     ])
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -89,6 +95,27 @@ async def cmd_sync(message: Message, session: AsyncSession, userbot: Any):
     text, keyboard = await get_groups_page_data(session, page=1)
     await message.answer(text, reply_markup=keyboard)
 
+
+@router.message(Command("remove_groups"))
+async def cmd_remove_groups(message: Message, session: AsyncSession):
+    """Удаление всех групп через команду"""
+    service = GroupService(session)
+    await service.remove_all_groups()
+    await message.answer("✅ Все группы удалены!")
+    # Показываем обновленный список
+    text, keyboard = await get_groups_page_data(session, page=1)
+    await message.answer(text, reply_markup=keyboard)
+
+
+@router.callback_query(F.data == "remove_groups")
+async def callback_remove_groups(callback: CallbackQuery, session: AsyncSession):
+    """Удаление всех групп"""
+    service = GroupService(session)
+    await service.remove_all_groups()
+    await callback.message.answer("✅ Все группы удалены!")
+    # Показываем обновленный список
+    text, keyboard = await get_groups_page_data(session, page=1)
+    await callback.message.answer(text, reply_markup=keyboard)
 
 @router.callback_query(F.data == "sync_groups")
 async def callback_sync_groups(callback: CallbackQuery, session: AsyncSession, userbot: Any):

@@ -1,5 +1,5 @@
 from typing import List, Optional
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 from database.models.common import Group, GroupStatus
 
@@ -63,3 +63,8 @@ class DBMethods:
             await self.session.flush()
             return True
         return False
+
+    async def remove_all_groups(self) -> bool:
+        stmt = delete(Group)
+        await self.session.execute(stmt)
+        return True
