@@ -21,7 +21,7 @@ class SessionService:
         direction: TradeDirection,
         currency_from: str,
         currency_to: str,
-        volume: float,
+        volume: str,
         payment_method: Optional[PaymentMethod] = None,
         time_to_live_minutes: int = 60,
         target_tags: List[str] = None

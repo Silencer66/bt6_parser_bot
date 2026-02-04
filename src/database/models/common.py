@@ -35,7 +35,7 @@ class TradingSession(Base):
     direction = Column(SQLEnum(TradeDirection), nullable=False)
     currency_from = Column(String, nullable=False)
     currency_to = Column(String, nullable=False)
-    volume = Column(Float, nullable=False)
+    volume = Column(String, nullable=False)
     payment_method = Column(SQLEnum(PaymentMethod), nullable=True)
     time_to_live_minutes = Column(Integer, default=60)
     created_at = Column(DateTime, default=datetime.utcnow)

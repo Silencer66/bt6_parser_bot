@@ -47,76 +47,53 @@ async def cmd_create_session(message: Message, state: FSMContext):
 async def process_direction(callback: CallbackQuery, state: FSMContext):
     """Обработка выбора направления"""
     direction = TradeDirection.BUY if callback.data == "direction_buy" else TradeDirection.SELL
-    await state.update_data(direction=direction.value)
+    
+    # Автоматически устанавливаем валюты
+    if direction == TradeDirection.BUY:
+        # Покупаю USDT за RUB
+        currency_from = "USDT"
+        currency_to = "RUB"
+    else:
+        # Продаю USDT за RUB
+        currency_from = "RUB"
+        currency_to = "USDT"
+    
+    await state.update_data(
+        direction=direction.value,
+        currency_from=currency_from,
+        currency_to=currency_to
+    )
     
     await callback.message.edit_text(
-        "💱 Введите валюту, которую вы хотите получить (например: USDT, RUB):"
-    )
-    await state.set_state(CreateSessionStates.waiting_for_currency_from)
-    await callback.answer()
-
-
-@router.message(CreateSessionStates.waiting_for_currency_from)
-async def process_currency_from(message: Message, state: FSMContext):
-    """Обработка валюты получения"""
-    currency_from = message.text.strip().upper()
-    await state.update_data(currency_from=currency_from)
-    
-    await message.answer(
-        "💱 Введите валюту, которую вы отдаете (например: RUB, USD):"
-    )
-    await state.set_state(CreateSessionStates.waiting_for_currency_to)
-
-
-@router.message(CreateSessionStates.waiting_for_currency_to)
-async def process_currency_to(message: Message, state: FSMContext):
-    """Обработка валюты отдачи"""
-    currency_to = message.text.strip().upper()
-    await state.update_data(currency_to=currency_to)
-    
-    await message.answer(
-        "📦 Введите объем сделки (число, например: 10000):"
+        "📦 Введите объем сделки:"
     )
     await state.set_state(CreateSessionStates.waiting_for_volume)
+    await callback.answer()
 
 
 @router.message(CreateSessionStates.waiting_for_volume)
 async def process_volume(message: Message, state: FSMContext):
     """Обработка объема"""
-    try:
-        volume = float(message.text.strip())
-        await state.update_data(volume=volume)
-        
-        keyboard = InlineKeyboardMarkup(inline_keyboard=[
-            [
-                InlineKeyboardButton(text="Нерез", callback_data="payment_nonres"),
-                InlineKeyboardButton(text="Нал", callback_data="payment_cash")
-            ],
-            [InlineKeyboardButton(text="Безнал", callback_data="payment_cashless")],
-            [InlineKeyboardButton(text="Пропустить", callback_data="payment_skip")]
-        ])
-        
-        await message.answer(
-            "💳 Выберите метод оплаты (или пропустите):",
-            reply_markup=keyboard
-        )
-        await state.set_state(CreateSessionStates.waiting_for_payment_method)
-    except ValueError:
-        await message.answer("❌ Введите корректное число.")
+    volume = message.text.strip()
+    await state.update_data(volume=volume)
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="Безнал БН", callback_data="payment_cashless")],
+        [InlineKeyboardButton(text="Пропустить", callback_data="payment_skip")]
+    ])
+    
+    await message.answer(
+        "💳 Выберите метод оплаты (или пропустите):",
+        reply_markup=keyboard
+    )
+    await state.set_state(CreateSessionStates.waiting_for_payment_method)
 
 
 @router.callback_query(F.data.startswith("payment_"), CreateSessionStates.waiting_for_payment_method)
 async def process_payment_method(callback: CallbackQuery, state: FSMContext):
     """Обработка метода оплаты"""
-    payment_map = {
-        "payment_nonres": PaymentMethod.NONRES,
-        "payment_cash": PaymentMethod.CASH,
-        "payment_cashless": PaymentMethod.CASHLESS
-    }
-    
-    if callback.data != "payment_skip":
-        payment_method = payment_map.get(callback.data)
-        await state.update_data(payment_method=payment_method.value if payment_method else None)
+    if callback.data == "payment_cashless":
+        await state.update_data(payment_method=PaymentMethod.CASHLESS.value)
     else:
         await state.update_data(payment_method=None)
     
@@ -145,15 +122,21 @@ async def process_ttl(message: Message, state: FSMContext, session: AsyncSession
         action = "ПОКУПАЮ" if direction == TradeDirection.BUY else "ПРОДАЮ"
         
         payment_method_str = "Любой"
-        if payment_method_enum == PaymentMethod.NONRES: payment_method_str = "Безналичный расчет (Нерез)"
-        elif payment_method_enum == PaymentMethod.CASH: payment_method_str = "Наличные"
-        elif payment_method_enum == PaymentMethod.CASHLESS: payment_method_str = "Безналичный расчет"
+        if payment_method_enum == PaymentMethod.CASHLESS: payment_method_str = "Безналичный расчет"
+
+        # Формируем текст направления: всегда "USDT за RUB"
+        # При BUY: покупаю USDT за RUB
+        # При SELL: продаю USDT за RUB
+        direction_text = f"{action} USDT за RUB"
+        
+        # Объем всегда в USDT (что покупаем/продаем)
+        volume_text = f"{volume} "
 
         # Шаблон сообщения в группы
         broadcast_text = (
             f"🎯 <b>ИЩУ ЛИКВИДНОСТЬ | АКТИВНО ДО {(datetime.now() + timedelta(minutes=ttl)).strftime('%H:%M')}</b>\n\n"
-            f"🔸 <b>НАПРАВЛЕНИЕ:</b> <b>{action} {currency_to} за {currency_from}</b>\n"
-            f"🔸 <b>ОБЪЕМ:</b> <b>{volume:,.0f} {currency_to}</b>\n"
+            f"🔸 <b>НАПРАВЛЕНИЕ:</b> <b>{direction_text}</b>\n"
+            f"🔸 <b>ОБЪЕМ:</b> <b>{volume_text}</b>\n"
             f"🔸 <b>ОПЛАТА:</b> {payment_method_str}\n\n"
         )
 
