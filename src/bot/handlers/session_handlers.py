@@ -6,7 +6,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from sqlalchemy.ext.asyncio import AsyncSession
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from services import SessionService, GroupService
 from database import TradeDirection, PaymentMethod
@@ -20,6 +20,7 @@ class CreateSessionStates(StatesGroup):
     waiting_for_direction = State()
     waiting_for_currency_from = State()
     waiting_for_currency_to = State()
+    waiting_for_target_rate = State()
     waiting_for_volume = State()
     waiting_for_payment_method = State()
     waiting_for_ttl = State()
@@ -64,12 +65,45 @@ async def process_direction(callback: CallbackQuery, state: FSMContext):
         currency_to=currency_to
     )
     
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⏭️ Пропустить (парсить все)", callback_data="target_rate_skip")]
+    ])
+    
+    await callback.message.edit_text(
+        "📦 Введите целевой курс:\n\n"
+        "💡 <i>Введите 0 или нажмите 'Пропустить', чтобы парсить все предложения без фильтрации</i>",
+        reply_markup=keyboard
+    )
+    await state.set_state(CreateSessionStates.waiting_for_target_rate)
+    await callback.answer()
+
+
+
+@router.callback_query(F.data == "target_rate_skip", CreateSessionStates.waiting_for_target_rate)
+async def process_target_rate_skip(callback: CallbackQuery, state: FSMContext):
+    """Пропуск целевого курса"""
+    await state.update_data(target_rate=0)
+    
     await callback.message.edit_text(
         "📦 Введите объем сделки:"
     )
     await state.set_state(CreateSessionStates.waiting_for_volume)
     await callback.answer()
 
+
+@router.message(CreateSessionStates.waiting_for_target_rate)
+async def process_target_currency(message: Message, state: FSMContext):
+    """Обработка целевого курса"""
+    try:
+        target_currency = float(message.text.strip())
+        await state.update_data(target_rate=target_currency)
+        
+        await message.answer(
+            "📦 Введите объем сделки:"
+        )
+        await state.set_state(CreateSessionStates.waiting_for_volume)
+    except ValueError:
+        await message.answer("❌ Введите корректное число для целевого курса.")
 
 @router.message(CreateSessionStates.waiting_for_volume)
 async def process_volume(message: Message, state: FSMContext):
@@ -116,6 +150,7 @@ async def process_ttl(message: Message, state: FSMContext, session: AsyncSession
         currency_from = data["currency_from"]
         currency_to = data["currency_to"]
         volume = data["volume"]
+        target_rate = data["target_rate"]
         payment_method_enum = PaymentMethod(data["payment_method"]) if data.get("payment_method") else None
         
         # Определяем лейблы
@@ -130,13 +165,17 @@ async def process_ttl(message: Message, state: FSMContext, session: AsyncSession
         direction_text = f"{action} USDT за RUB"
         
         # Объем всегда в USDT (что покупаем/продаем)
-        volume_text = f"{volume} "
+        volume_text = f"{volume} USDT"
+        
+        # Целевой курс: если 0, то "Любой"
+        target_rate_text = "Любой" if target_rate == 0 else str(target_rate)
 
         # Шаблон сообщения в группы
         broadcast_text = (
-            f"🎯 <b>ИЩУ ЛИКВИДНОСТЬ | АКТИВНО ДО {(datetime.now() + timedelta(minutes=ttl)).strftime('%H:%M')}</b>\n\n"
+            f"🎯 <b>ИЩУ ЛИКВИДНОСТЬ | АКТИВНО ДО {(datetime.now(timezone(timedelta(hours=3))) + timedelta(minutes=ttl)).strftime('%H:%M')}</b>\n\n"
             f"🔸 <b>НАПРАВЛЕНИЕ:</b> <b>{direction_text}</b>\n"
             f"🔸 <b>ОБЪЕМ:</b> <b>{volume_text}</b>\n"
+            f"🔸 <b>ЦЕЛЕВОЙ КУРС:</b> <b>{target_rate_text}</b>\n"
             f"🔸 <b>ОПЛАТА:</b> {payment_method_str}\n\n"
         )
 
@@ -180,7 +219,8 @@ async def process_ttl(message: Message, state: FSMContext, session: AsyncSession
             target_chat_ids=chat_ids,
             direction=trade_dir_str,
             currency_from=currency_from,
-            currency_to=currency_to
+            currency_to=currency_to,
+            target_rate=target_rate
         )
         
         # Создаем сообщение-табло

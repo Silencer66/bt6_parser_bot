@@ -12,9 +12,10 @@ class BroadcastState:
         self.session_direction: str = 'buy'
         self.currency_from: str = ''
         self.currency_to: str = ''
-        self.is_custom_mode: bool = False 
+        self.is_custom_mode: bool = False
+        self.target_rate: Optional[float] = None
 
-    def start(self, admin_id: int, duration_minutes: int, target_chat_ids: list[int], direction: str = 'buy', currency_from: str = '', currency_to: str = '', is_custom: bool = False):
+    def start(self, admin_id: int, duration_minutes: int, target_chat_ids: list[int], direction: str = 'buy', currency_from: str = '', currency_to: str = '', is_custom: bool = False, target_rate: Optional[float] = None):
         self.admin_id = admin_id
         self.end_time = datetime.now() + timedelta(minutes=duration_minutes)
         self.target_chat_ids = set(target_chat_ids)
@@ -25,6 +26,7 @@ class BroadcastState:
         self.currency_from = currency_from
         self.currency_to = currency_to
         self.is_custom_mode = is_custom
+        self.target_rate = target_rate
 
     def stop(self):
         self.is_active = False
@@ -63,7 +65,7 @@ class BroadcastState:
         # Фильтрация: нам нужны только встречные заявки и те, где есть цена
         # Если мы BUY, ищем SELL. Если мы SELL, ищем BUY.
         target_side = 'sell' if self.session_direction == 'buy' else 'buy'
-        
+
         valid_responses = [r for r in self.responses if r['price'] is not None and (r.get('side') == target_side or r.get('side') is None)]
         other_responses = [r for r in self.responses if r not in valid_responses]
         
@@ -73,11 +75,21 @@ class BroadcastState:
         reverse_sort = True if self.session_direction == 'sell' else False
         
         valid_responses.sort(key=lambda x: x['price'], reverse=reverse_sort)
-        
+
+        # Фильтрация по целевому курсу
+        # Если мы BUY (хотим купить), нам нужны все которые меньше либо равны target_rate
+        # Если мы SELL (хотим продать), нам нужны все которые больше либо равны target_rate
+        if self.target_rate is not None and self.target_rate > 0:
+            if self.session_direction == 'buy':
+                valid_responses = [r for r in valid_responses if r['price'] <= self.target_rate]
+            else:
+                valid_responses = [r for r in valid_responses if r['price'] >= self.target_rate]
+
         # Формирование текста
         lines = []
         
         if valid_responses:
+            #
             lines.append(f"📊 <b>ТОП ПРЕДЛОЖЕНИЙ ({'Сортировка по выгодности' if self.session_direction else 'Список'}):</b>")
             for i, r in enumerate(valid_responses[:10], 1): # Топ 10
                 price_str = f"{r['price']}"

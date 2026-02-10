@@ -40,6 +40,7 @@ class TradingSession(Base):
     time_to_live_minutes = Column(Integer, default=60)
     created_at = Column(DateTime, default=datetime.utcnow)
     target_tags = Column(JSON, default=list)
+    target_rate = Column(Float, default=0)
     
     # Custom broadcast fields
     is_custom_broadcast = Column(Boolean, default=False)
