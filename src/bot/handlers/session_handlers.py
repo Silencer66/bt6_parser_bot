@@ -223,7 +223,7 @@ async def process_ttl(message: Message, state: FSMContext, session: AsyncSession
             target_rate=target_rate
         )
         
-        # Создаем сообщение-табло
+        # Создаем сообщение-табло через бота (без entity в userbot — избегаем PeerUser not found)
         dashboard_preview = (
              f"📊 <b>Сбор заявок: {'ПОКУПКА' if direction == TradeDirection.BUY else 'ПРОДАЖА'}</b>\n"
              f"⏱️ Осталось времени: {ttl} мин.\n\n"
@@ -231,9 +231,8 @@ async def process_ttl(message: Message, state: FSMContext, session: AsyncSession
         )
         
         try:
-             # Отправляем через Userbot (чтобы он мог редактировать)
-             dash_msg = await userbot.client.send_message(message.from_user.id, dashboard_preview, parse_mode='html')
-             broadcast_manager.set_report_message_id(dash_msg.id)
+             dash_msg = await message.answer(dashboard_preview, parse_mode="html")
+             broadcast_manager.set_report_message(message.chat.id, dash_msg.message_id, message.bot)
              await message.answer("✅ Сессия активна! Сводка выше будет обновляться в реальном времени.")
         except Exception as e:
              await message.answer(f"⚠️ Табло не создалось: {e}")

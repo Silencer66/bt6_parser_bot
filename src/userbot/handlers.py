@@ -150,32 +150,27 @@ async def handle_custom_broadcast_message(event, client):
 
 
 async def update_dashboard(client):
-    """Update the dashboard message"""
-    if broadcast_manager.report_message_id and broadcast_manager.admin_id:
-        dashboard_content = broadcast_manager.get_dashboard_text()
-        
-        minutes_left = 0
-        if broadcast_manager.end_time:
-            minutes_left = int((broadcast_manager.end_time - datetime.now()).total_seconds() / 60)
-        
-        if broadcast_manager.is_custom_mode:
-            direction_str = "ПРОИЗВОЛЬНЫЙ ЗАПРОС"
-        else:
-            my_direction = broadcast_manager.session_direction
-            direction_str = "ПОКУПКА" if my_direction == 'buy' else "ПРОДАЖА"
+    """Обновляет сообщение табло через бота (без entity в userbot)."""
+    if not broadcast_manager.report_message_id or not broadcast_manager.report_chat_id:
+        return
+    dashboard_content = broadcast_manager.get_dashboard_text()
+    
+    minutes_left = 0
+    if broadcast_manager.end_time:
+        minutes_left = int((broadcast_manager.end_time - datetime.now()).total_seconds() / 60)
+    
+    if broadcast_manager.is_custom_mode:
+        direction_str = "ПРОИЗВОЛЬНЫЙ ЗАПРОС"
+    else:
+        my_direction = broadcast_manager.session_direction
+        direction_str = "ПОКУПКА" if my_direction == 'buy' else "ПРОДАЖА"
 
-        new_text = (
-            f"📊 <b>Сбор заявок: {direction_str}</b>\n"
-            f"⏱️ Осталось времени: {minutes_left} мин.\n\n"
-            f"{dashboard_content}\n"
-        )
-        
-        try:
-            await client.edit_message(
-                entity=broadcast_manager.admin_id,
-                message=broadcast_manager.report_message_id,
-                text=new_text,
-                parse_mode='html'
-            )
-        except Exception as edit_err:
-            logger.warning(f"Failed to update dashboard: {edit_err}")
+    new_text = (
+        f"📊 <b>Сбор заявок: {direction_str}</b>\n"
+        f"⏱️ Осталось времени: {minutes_left} мин.\n\n"
+        f"{dashboard_content}\n"
+    )
+    
+    ok = await broadcast_manager.edit_report_message_text(new_text)
+    if not ok:
+        logger.warning("Failed to update dashboard (edit via bot)")

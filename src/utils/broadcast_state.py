@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from typing import Optional, Set
+from typing import Optional, Set, Any
 
 class BroadcastState:
     def __init__(self):
@@ -8,6 +8,8 @@ class BroadcastState:
         self.admin_id: Optional[int] = None
         self.target_chat_ids: Set[int] = set()
         self.report_message_id: Optional[int] = None
+        self.report_chat_id: Optional[int] = None  # чат, куда отправлено табло (для редактирования через бота)
+        self._bot: Optional[Any] = None  # aiogram Bot для редактирования табло (без entity userbot)
         self.responses: list = [] # Список словарей {time, user, group, text}
         self.session_direction: str = 'buy'
         self.currency_from: str = ''
@@ -22,6 +24,7 @@ class BroadcastState:
         self.is_active = True
         self.responses = []
         self.report_message_id = None
+        self.report_chat_id = None
         self.session_direction = direction # 'buy' or 'sell' (наше намерение)
         self.currency_from = currency_from
         self.currency_to = currency_to
@@ -34,9 +37,22 @@ class BroadcastState:
         self.admin_id = None
         self.target_chat_ids.clear()
         self.report_message_id = None
+        self.report_chat_id = None
+        self._bot = None
 
     def set_report_message_id(self, msg_id: int):
         self.report_message_id = msg_id
+
+    def set_report_message(self, chat_id: int, message_id: int, bot: Any = None):
+        """Сохранить сообщение табло и бота для последующего редактирования."""
+        self.report_chat_id = chat_id
+        self.report_message_id = message_id
+        if bot is not None:
+            self._bot = bot
+
+    def set_bot(self, bot: Any):
+        """Установить экземпляр aiogram Bot для редактирования табло."""
+        self._bot = bot
 
     def add_response(self, user: str, group: str, text: str, price: float = None, volume: str = None, side: str = None, raw_text: str = ""):
         self.responses.append({
@@ -161,6 +177,21 @@ class BroadcastState:
             return False
             
         return True
+
+    async def edit_report_message_text(self, text: str) -> bool:
+        """Обновить текст сообщения табло через бота (без использования entity в userbot)."""
+        if self._bot is None or self.report_chat_id is None or self.report_message_id is None:
+            return False
+        try:
+            await self._bot.edit_message_text(
+                chat_id=self.report_chat_id,
+                message_id=self.report_message_id,
+                text=text,
+                parse_mode="HTML",
+            )
+            return True
+        except Exception:
+            return False
 
 # Глобальный инстанс
 broadcast_manager = BroadcastState()

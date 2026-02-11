@@ -80,7 +80,7 @@ async def process_custom_ttl(message: Message, state: FSMContext, session: Async
             is_custom=True  # ВАЖНО: включаем кастомный режим
         )
         
-        # Создаем сообщение-табло
+        # Создаем сообщение-табло через бота (без entity в userbot — избегаем PeerUser not found)
         dashboard_preview = (
             f"📊 <b>Сбор ответов: ПРОИЗВОЛЬНЫЙ ЗАПРОС</b>\n"
             f"⏱️ Осталось времени: {ttl} мин.\n\n"
@@ -88,9 +88,8 @@ async def process_custom_ttl(message: Message, state: FSMContext, session: Async
         )
         
         try:
-            # Отправляем через Userbot (чтобы он мог редактировать)
-            dash_msg = await userbot.client.send_message(message.from_user.id, dashboard_preview, parse_mode='html')
-            broadcast_manager.set_report_message_id(dash_msg.id)
+            dash_msg = await message.answer(dashboard_preview, parse_mode="html")
+            broadcast_manager.set_report_message(message.chat.id, dash_msg.message_id, message.bot)
             await message.answer("✅ Рассылка активна! Сводка выше будет обновляться в реальном времени.")
         except Exception as e:
             await message.answer(f"⚠️ Табло не создалось: {e}")
