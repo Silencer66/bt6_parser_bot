@@ -153,31 +153,14 @@ async def process_ttl(message: Message, state: FSMContext, session: AsyncSession
         target_rate = data["target_rate"]
         payment_method_enum = PaymentMethod(data["payment_method"]) if data.get("payment_method") else None
         
-        # Определяем лейблы
-        action = "ПОКУПАЮ" if direction == TradeDirection.BUY else "ПРОДАЮ"
-        
-        payment_method_str = "Любой"
-        if payment_method_enum == PaymentMethod.CASHLESS: payment_method_str = "Безналичный расчет"
-
-        # Формируем текст направления: всегда "USDT за RUB"
-        # При BUY: покупаю USDT за RUB
-        # При SELL: продаю USDT за RUB
-        direction_text = f"{action} USDT за RUB"
-        
-        # Объем всегда в USDT (что покупаем/продаем)
-        volume_text = f"{volume} USDT"
-        
-        # Целевой курс: если 0, то "Любой"
-        target_rate_text = "Любой" if target_rate == 0 else str(target_rate)
-
         # Шаблон сообщения в группы
-        broadcast_text = (
-            f"🎯 <b>ИЩУ ЛИКВИДНОСТЬ | АКТИВНО ДО {(datetime.now(timezone(timedelta(hours=3))) + timedelta(minutes=ttl)).strftime('%H:%M')}</b>\n\n"
-            f"🔸 <b>НАПРАВЛЕНИЕ:</b> <b>{direction_text}</b>\n"
-            f"🔸 <b>ОБЪЕМ:</b> <b>{volume_text}</b>\n"
-            f"🔸 <b>ЦЕЛЕВОЙ КУРС:</b> <b>{target_rate_text}</b>\n"
-            f"🔸 <b>ОПЛАТА:</b> {payment_method_str}\n\n"
-        )
+        if direction == TradeDirection.BUY:
+            broadcast_text = f"Коллеги, купим <b>{volume}</b> USDT"
+        else:
+            broadcast_text = f"Коллеги, продадим <b>{volume}</b> USDT"
+
+        if target_rate and target_rate > 0:
+            broadcast_text += f"\n\nЦелевой курс <b>{target_rate}</b>"
 
         # 2. Получаем активные группы
         group_service = GroupService(session)
