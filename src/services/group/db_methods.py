@@ -25,9 +25,15 @@ class DBMethods:
         return result.scalar_one_or_none()
 
     async def get_all(self, status: Optional[GroupStatus] = None, limit: Optional[int] = None, offset: Optional[int] = None) -> List[Group]:
+        from sqlalchemy import case
         stmt = select(Group)
         if status:
             stmt = stmt.where(Group.status == status)
+        
+        stmt = stmt.order_by(
+            case((Group.status == GroupStatus.ACTIVE, 0), else_=1),
+            Group.title
+        )
         
         if limit is not None:
             stmt = stmt.limit(limit)
